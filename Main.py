@@ -1,7 +1,8 @@
 import sys
-import getopt
+from getopt import getopt, GetoptError
 import json
 import DownloadManager
+import os
 
 
 def main(argv):
@@ -9,14 +10,14 @@ def main(argv):
     f_list = None
     help = 'PyDownload.py ./output_directory/ -i <JSON input_file>  -f <url1,url2,url3...>'
     try:
-        opts, args = getopt.getopt(argv, "hi:f:", ["ifile=", "flist="])
-    except getopt.GetoptError:
+        opts, args = getopt(argv[1:], "hi:f:", ["ifile=", "flist="])
+    except GetoptError:
         print(help)
         sys.exit(2)
 
-    # save an output dit
-    if len(args) > 0:
-        output_directory = args[0]
+    # save an output dict
+    if len(argv[0]) > 0 and not argv[0].startswith('-'):
+        output_directory = argv[0]
     else:
         print(help)
         sys.exit(2)
@@ -28,7 +29,10 @@ def main(argv):
         elif opt in ("-i", "--ifile"):
             input_file = arg
         elif opt in ("-f", "--flist"):
-            f_list = [i for i in arg.slit(',')]
+            if ',' in arg:
+                f_list = [i for i in arg.slit(',')]
+            else:
+                f_list = arg
 
     print('----------PyDownload---------------')
     print('------------------------------------')
@@ -48,9 +52,12 @@ def main(argv):
             download_dic[url['link_name']] = url['link_address']
 
     # Add in any additional files contained in the flist variable
-    if f_list is not None:
+    if f_list is not None and type(f_list) is []:
         for f in f_list:
-            download_dic[str(f)] = f
+            download_dic[os.path.basename(f)] = f
+
+    elif f_list is not None:
+        download_dic[os.path.basename(str(f_list))] = f_list
 
     # If there are no URLs to download then exit now, nothing to do!
     if len(download_dic) is 0:
