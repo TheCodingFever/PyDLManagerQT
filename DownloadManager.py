@@ -32,7 +32,7 @@ class Downloader(threading.Thread):
     def download_file(self, url):
 
         if not os.path.exists(self.output_directory):
-            print('Specified path "%s" does not exist. Creating...' % os.path.dirname(self.output_directory))
+            print('Specified path "%s" does not exist. It will be created.' % os.path.dirname(self.output_directory))
             os.makedirs(self.output_directory)
 
         t_start = time.clock()
@@ -74,25 +74,29 @@ class DownloadManager:
         self.thread_count = thread_count
         self.download_dict = download_dict
         self.output_directory = output_directory
-
-    # Start the downloader threads, fill the queue with the URLs and
-    # then feed the threads URLs via the queue
-    def begin_download(self):
-        queue = Queue()
+        self.queue = Queue()
 
         # Creating a thread pool and pass them a queue
         for i in range(self.thread_count):
-            t = Downloader(queue, self.output_directory)
+            t = Downloader(self.queue, self.output_directory)
             t.setDaemon(True)
             t.start()
 
-        # Load the queue from download dict
+    # Start the downloader threads, fill the queue with the URLs and
+    # then feed the threads URLs via the queue
+    def begin_download(self, direct_link=None):
+        # queue = Queue()
 
+        if direct_link is not None:
+            self.queue.put(direct_link)
+            self.queue.join()
+            return
+        # Load the queue from download dict
         for linkname in self.download_dict:
             # print uri
-            queue.put(self.download_dict[linkname])
+            self.queue.put(self.download_dict[linkname])
 
         # wait for the queue to finish
-        queue.join()
+        self.queue.join()
 
         return
