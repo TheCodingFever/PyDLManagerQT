@@ -2,7 +2,6 @@ import time
 import threading
 import pyperclip
 import re
-import DownloadManager
 
 
 def is_downloadable_url(url):
@@ -19,17 +18,17 @@ def print_to_stdout(clipboard_content):
 
 
 def feed_queue(clipboard_content, download_manager):
-    #download_manager = DownloadManager
+
     download_manager.DownloadManager.begin_download(direct_link=clipboard_content)
 
 
 class ClipboardWatcher(threading.Thread):
-    def __init__(self, predicate, callback, pause=5):
+    def __init__(self, predicate, manager, pause=5):
         super(ClipboardWatcher, self).__init__()
         self._predicate = predicate
-        self._callback = callback
         self._pause = pause
         self._stopping = False
+        self._manager = manager
 
     def run(self):
         recent_value = ""
@@ -38,7 +37,7 @@ class ClipboardWatcher(threading.Thread):
             if tmp_value != recent_value:
                 recent_value = tmp_value
                 if self._predicate(recent_value):
-                    self._callback(recent_value)
+                    feed_queue(recent_value, self._manager)
             time.sleep(self._pause)
 
     def stop(self):

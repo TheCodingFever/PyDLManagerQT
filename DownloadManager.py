@@ -31,10 +31,6 @@ class Downloader(threading.Thread):
 
     def download_file(self, url):
 
-        if not os.path.exists(self.output_directory):
-            print('Specified path "%s" does not exist. It will be created.' % os.path.dirname(self.output_directory))
-            os.makedirs(self.output_directory)
-
         t_start = time.clock()
         r = requests.get(url, stream=True)
         if r.status_code == requests.codes.ok:
@@ -70,7 +66,7 @@ class Downloader(threading.Thread):
 class DownloadManager:
     """Spawns downloader threads and manages URL downloads queue"""
 
-    def __init__(self, download_dict, output_directory, thread_count=5):
+    def __init__(self, output_directory, download_dict, thread_count=5):
         self.thread_count = thread_count
         self.download_dict = download_dict
         self.output_directory = output_directory
