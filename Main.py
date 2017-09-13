@@ -57,16 +57,20 @@ def main(argv):
             download_dic[os.path.basename(f)] = f
 
     elif f_list is not None:
-        download_dic[os.path.basename(str(f_list))] = f_list
-
-    # If there are no URLs to download then exit now, nothing to do!
-    if len(download_dic) is 0:
-        print("* No URLs to download, got the usage right?")
-        print("USAGE: " + help)
-        sys.exit(2)
+        direct_link = f_list
 
     download_manager = DownloadManager.DownloadManager(download_dic, output_directory, 5)
-    download_manager.begin_download()
+
+    if direct_link.__len__() is not 0:
+        download_manager.begin_download(direct_link)
+    else:
+        # If there are no URLs to download then exit now, nothing to do!
+        if len(download_dic) is 0:
+            print("* No URLs to download, got the usage right?")
+            print("USAGE: " + help)
+            sys.exit(2)
+
+        download_manager.begin_download()
 
 
 if __name__ == "__main__":

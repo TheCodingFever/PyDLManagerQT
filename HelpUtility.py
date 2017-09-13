@@ -8,4 +8,3 @@ def compile_filename(url):
     result = re.search(_regex, _temp_name)
 
     return _temp_name[:result.end()]
-
