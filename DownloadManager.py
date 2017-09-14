@@ -32,6 +32,7 @@ class Downloader(threading.Thread):
     def download_file(self, url):
 
         t_start = time.clock()
+
         r = requests.get(url, stream=True)
         if r.status_code == requests.codes.ok:
 
@@ -43,7 +44,13 @@ class Downloader(threading.Thread):
             ]
 
             f_name = self.output_directory + "/" + HelpUtility.compile_filename(url)
-            total_length = int(r.headers.get('content-length'))
+
+            try:
+                total_length = int(r.headers.get('content-length'))
+            except TypeError:
+                print('ERROR: Bad Url or content is unreachable')
+                return
+
             bytes_downloaded = 0
             chunk_size = 1024
 
@@ -66,12 +73,23 @@ class Downloader(threading.Thread):
 class DownloadManager:
     """Spawns downloader threads and manages URL downloads queue"""
 
-    def __init__(self, output_directory, download_dict, thread_count=5):
+    def __init__(self, output_directory, download_dict, url, thread_count=5):
         self.thread_count = thread_count
         self.download_dict = download_dict
         self.output_directory = output_directory
+        self.url = url
         self.queue = Queue()
+        self.init_threads()
 
+    @property
+    def direct_link(self):
+        return self.url
+
+    @direct_link.setter
+    def direct_link(self, value):
+        self.url = value
+
+    def init_threads(self):
         # Creating a thread pool and pass them a queue
         for i in range(self.thread_count):
             t = Downloader(self.queue, self.output_directory)
@@ -80,11 +98,11 @@ class DownloadManager:
 
     # Start the downloader threads, fill the queue with the URLs and
     # then feed the threads URLs via the queue
-    def begin_download(self, direct_link=None):
+    def begin_download(self):
         # queue = Queue()
 
-        if direct_link is not None:
-            self.queue.put(direct_link)
+        if self.url is not None:
+            self.queue.put(self.url)
             self.queue.join()
             return
         # Load the queue from download dict

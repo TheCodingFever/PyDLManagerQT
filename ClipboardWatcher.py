@@ -2,13 +2,18 @@ import time
 import threading
 import pyperclip
 import re
+import os
+import binascii
 
 
 def is_downloadable_url(url):
     url_regex = re.compile(
         "(?:([^:\/?#]+):)?(?:\/\/([^\/?#]*))?([^?#]*\.(?:[a-zA-Z0-9]{3}))(?:\?([^#]*))?(?:#(.*))?")
-    if re.match(url_regex, url) is not None:
-        return True
+    #TODO: modify REGEX!!
+    result = re.match(url_regex, url)
+    if result is not None:
+        print('Appropriate link detected!')
+        return True, result.group(0)
     else:
         return False
 
@@ -19,11 +24,13 @@ def print_to_stdout(clipboard_content):
 
 def feed_queue(clipboard_content, download_manager):
 
-    download_manager.DownloadManager.begin_download(direct_link=clipboard_content)
+    download_manager.direct_link = clipboard_content
+    download_manager.begin_download()
 
 
 class ClipboardWatcher(threading.Thread):
     def __init__(self, predicate, manager, pause=5):
+        threading.Thread.__init__(self, name=binascii.hexlify(os.urandom(16)))
         super(ClipboardWatcher, self).__init__()
         self._predicate = predicate
         self._pause = pause
@@ -36,8 +43,9 @@ class ClipboardWatcher(threading.Thread):
             tmp_value = pyperclip.paste()
             if tmp_value != recent_value:
                 recent_value = tmp_value
-                if self._predicate(recent_value):
-                    feed_queue(recent_value, self._manager)
+                state, url = self._predicate(recent_value)
+                if state:
+                    feed_queue(url, self._manager)
             time.sleep(self._pause)
 
     def stop(self):
