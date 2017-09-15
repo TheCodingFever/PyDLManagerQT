@@ -55,7 +55,6 @@ class Downloader(threading.Thread):
             chunk_size = 1024
 
             with progressbar.ProgressBar(max_value=total_length, widgets=bar_widgets) as bar:
-                bar.start()
                 with open(f_name, "wb") as f:
                     for chunk in r.iter_content(chunk_size):
                         if chunk:
@@ -73,7 +72,7 @@ class Downloader(threading.Thread):
 class DownloadManager:
     """Spawns downloader threads and manages URL downloads queue"""
 
-    def __init__(self, output_directory, download_dict, url, thread_count=5):
+    def __init__(self, output_directory, download_dict, url=None, thread_count=5):
         self.thread_count = thread_count
         self.download_dict = download_dict
         self.output_directory = output_directory
@@ -99,7 +98,6 @@ class DownloadManager:
     # Start the downloader threads, fill the queue with the URLs and
     # then feed the threads URLs via the queue
     def begin_download(self):
-        # queue = Queue()
 
         if self.url is not None:
             self.queue.put(self.url)

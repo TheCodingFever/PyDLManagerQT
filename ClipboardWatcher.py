@@ -8,12 +8,12 @@ import binascii
 
 def is_downloadable_url(url):
     url_regex = re.compile(
-        "(?:([^:\/?#]+):)?(?:\/\/([^\/?#]*))?([^?#]*\.(?:[a-zA-Z0-9]{3}))(?:\?([^#]*))?(?:#(.*))?")
-    #TODO: modify REGEX!!
-    result = re.match(url_regex, url)
+        "\w+\.[A-Za-z]{3,4}(?=\?|$)")
+
+    result = re.search(url_regex, url)
     if result is not None:
         print('Appropriate link detected!')
-        return True, result.group(0)
+        return True
     else:
         return False
 
@@ -43,9 +43,8 @@ class ClipboardWatcher(threading.Thread):
             tmp_value = pyperclip.paste()
             if tmp_value != recent_value:
                 recent_value = tmp_value
-                state, url = self._predicate(recent_value)
-                if state:
-                    feed_queue(url, self._manager)
+                if self._predicate(recent_value):
+                    feed_queue(recent_value, self._manager)
             time.sleep(self._pause)
 
     def stop(self):
