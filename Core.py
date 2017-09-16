@@ -1,86 +1,57 @@
 import sys
 import json
-import time
 import DownloadManager
 import os
-import ClipboardWatcher as Watch
 import click
+import HelpUtility
 
 
 class Factory:
-    def __init__(self, output_directory, input_file, flist):
+    def __init__(self, output_directory, input_file, flist, is_watch=False):
         self._input_file = input_file
         self._fList = flist
         self._output_directory = output_directory
         self._max_threads = 5
+        self._is_watch = is_watch
 
     @property
-    def input_file(self):
-        return self._input_file
-
-    @property
-    def max_threads(self):
-        return self._max_threads
-
-    @property
-    def output_directory(self):
-        return self._output_directory
-
-    @output_directory.setter
-    def output_directory(self, value):
-        self._output_directory = value
-
-    @staticmethod
-    def start_watching(output_directory):
-        worker = DownloadManager.DownloadManager(output_directory, None, None)
-        watcher = Watch.ClipboardWatcher(Watch.is_downloadable_url, worker, 5.)
-        watcher.setDaemon(True)
-        watcher.start()
-
-        print('----------------PyDownload---------------')
-        print('          Watching your clipboard...     ')
-        print('           Press Any Key to exit         ')
-        print('-----------------------------------------\n')
-
-        choice = ''
-        while choice is '':
-            try:
-                time.sleep(10)
-                choice = input()
-            except KeyboardInterrupt:
-                watcher.stop()
-                break
+    def is_watch(self):
+        return self._is_watch
 
     def __build_urls(self):
         # Init dictionary
         download_dic = {}
 
-        # TODO: URL VALIDATION NEEDED BEFORE WE COMPILE THE DICTIONARY!
+        try:
+            # If the input passed as file input parse it as JSON
+            if self._input_file is not None:
+                fp = open(self._input_file)
+                url_list = json.load(fp)
+                for url in url_list:
+                    download_dic[url['link_name']] = url['link_address']
+        except click.ClickException('JSON %s structure is not as expected. See --help' % self._input_file):
+            sys.exit(2)
 
-        # If the input passed as file input parse it as JSON
-        if self._input_file is not None:
-            fp = open(self._input_file)
-            url_list = json.load(fp)
-            for url in url_list:
-                download_dic[url['link_name']] = url['link_address']
-
-        if self._fList is not None:
+        if self._fList is not None and self._fList:
             # Add in any additional files contained in the flist variable
             if len(self._fList) > 0:
                 for f in self._fList:
-                    download_dic[os.path.basename(f)] = f
+                    if HelpUtility.is_downloadable_url(f):
+                        download_dic[os.path.basename(f)] = f
             else:
-                print('No urls to work with were found!')
-                print('Quiting the program')
+                click.echo('No urls to work with were found!')
+                click.echo('Quiting the program')
                 sys.exit(2)
 
         return download_dic
 
     def prepare_data(self):
+        targets_dictionary = {}
 
-        download_dic = self.__build_urls()
+        if not self._is_watch:
+            targets_dictionary = self.__build_urls()
 
-        return DownloadManager.DownloadManager(self.output_directory, download_dic)
+        return DownloadManager.DownloadManager(self._output_directory, targets_dictionary)
 
 
 class Initializer:
@@ -94,21 +65,19 @@ class Initializer:
 
         if self._isWatch:
             self.__watch_interactive()
-            Factory.start_watching(self._output_directory)
-            return None
 
-        return Factory(self._output_directory, self._iFile, self._fList).prepare_data()
+        return Factory(self._output_directory, self._iFile, self._fList, self._isWatch).prepare_data()
 
     @staticmethod
     def __watch_interactive():
 
         watch_mode = """
-        -----------------------------PyDownload-----------------------------\n
-        No arguments were specified or --watch mode selected.\n
-        Application will turn into 'watch' mode\n
-        It will try to catch all urls from clipboard and download them.\n
-        Are you sure to enter 'watch' mode?    \n
-        --------------------------------------------------------------------\n"""
+-----------------------------PyDownload-----------------------------
+No urls to download were specified or --watch mode selected.
+Application will turn into 'watch' mode
+It will try to catch all urls from clipboard and download them.
+Are you sure to enter 'watch' mode?    
+--------------------------------------------------------------------\n"""
 
         if click.confirm(watch_mode, abort=True):
             return
