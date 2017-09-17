@@ -59,7 +59,7 @@ class Downloader(threading.Thread):
                     if chunk:
                         f.write(chunk)
                         bytes_downloaded += len(chunk)
-                        self.queue.put(self.name, bytes_downloaded, total_length)
+                        self.queue.put([self.name, bytes_downloaded, total_length])
             t_elapsed = time.clock() - t_start
             print("* Thread: " + self.name + " Downloaded " + url + " in " + str(t_elapsed) + " seconds\n")
             r.close()
@@ -80,7 +80,7 @@ class DownloadManager:
         self._workers = []
 
     def start_watching(self):
-        watcher = Watch.ClipboardWatcher(HelpUtility.is_downloadable_url, self.begin_download(), 5.)
+        watcher = Watch.ClipboardWatcher(HelpUtility.is_downloadable_url, self.begin_download, 5.)
         watcher.setDaemon(True)
         watcher.start()
 
@@ -115,7 +115,7 @@ class DownloadManager:
 
         if add_url is not None:
             dict(self.download_dict).clear()
-            dict(self.download_dict).update([os.urandom(5), add_url])
+            self.download_dict[os.urandom(5)] = add_url
 
         self.__init_threads()
 
@@ -149,7 +149,7 @@ class DownloadManager:
         for name, downloaded, total in self._progress.items():
             print("* Thread " + name + " - processing URL")
             bar = progressbar.ProgressBar(max_value=total, widgets=bar_widgets)
-            if downloaded == 0:
+            if downloaded < 1024:
                 bar.start()
             bar.update(downloaded)
             if downloaded == total:
