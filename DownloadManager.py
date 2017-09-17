@@ -15,20 +15,17 @@ import sys
 class Downloader(threading.Thread):
     """Threaded file downloader"""
 
-    def __init__(self, queue, output_directory):
+    def __init__(self, queue, output_directory, url):
         threading.Thread.__init__(self, name=binascii.hexlify(os.urandom(8)))
         self.queue = queue
         self.output_directory = output_directory
         self.progress_bar = progressbar
         self.output_lock = threading.Lock()
+        self._url = url
 
     def run(self):
-        while True:
-            # get url from queue
-            url = self.queue.get()
-
             # download the file
-            self.download_file(url)
+            self.download_file(self._url)
 
             # send a signal to queue that job is done
             self.queue.task_done()
@@ -99,11 +96,11 @@ class DownloadManager:
                 break
         watcher.stop()
 
-    def __init_threads(self):
+    def __start_workers(self):
 
         # Creating a thread pool and pass them a queue
-        for i in range(len(self.download_dict)):
-            worker = Downloader(self.queue, self.output_directory)
+        for key in self.download_dict:
+            worker = Downloader(self.queue, self.output_directory, self.download_dict[key])
             worker.setDaemon(True)
             worker.start()
             self._progress[worker.name] = 0, 0
@@ -117,11 +114,7 @@ class DownloadManager:
             dict(self.download_dict).clear()
             self.download_dict[os.urandom(5)] = add_url
 
-        self.__init_threads()
-
-        # Load the queue from download dict
-        for link_name in self.download_dict:
-            self.queue.put(self.download_dict[link_name])
+        self.__start_workers()
 
         while any(i.is_alive() for i in self._workers):
             time.sleep(0.1)
@@ -149,7 +142,7 @@ class DownloadManager:
         for name, downloaded, total in self._progress.items():
             print("* Thread " + name + " - processing URL")
             bar = progressbar.ProgressBar(max_value=total, widgets=bar_widgets)
-            if downloaded < 1024:
+            if downloaded <= 1024:
                 bar.start()
             bar.update(downloaded)
             if downloaded == total:
