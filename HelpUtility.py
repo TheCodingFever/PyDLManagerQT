@@ -9,3 +9,16 @@ def compile_filename(url):
 
     return _temp_name[:result.end()]
 
+
+def is_downloadable_url(url):
+    url_regex = re.compile(
+        "([\/.\w]+)([[.][\w]+)(?=\?|$)")
+
+    result = re.search(url_regex, url)
+    if result is not None:
+        print('Appropriate link detected!')
+        return True
+    else:
+        print('Bad Url!')
+        return False
+

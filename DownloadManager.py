@@ -1,4 +1,5 @@
 from queue import Queue
+import click
 import os
 import binascii
 import threading
@@ -6,62 +7,73 @@ import requests
 import time
 import HelpUtility
 import progressbar
+import collections
+import ClipboardWatcher as Watch
 
 
 class Downloader(threading.Thread):
     """Threaded file downloader"""
 
     def __init__(self, queue, output_directory):
-        threading.Thread.__init__(self, name=binascii.hexlify(os.urandom(16)))
+        threading.Thread.__init__(self, name=binascii.hexlify(os.urandom(8)))
         self.queue = queue
         self.output_directory = output_directory
         self.progress_bar = progressbar
+        self.output_lock = threading.Lock()
 
     def run(self):
         while True:
-            # get url from queue
+
             url = self.queue.get()
 
             # download the file
-            print("* Thread " + self.name + " - processing URL")
             self.download_file(url)
 
             # send a signal to queue that job is done
             self.queue.task_done()
 
     def download_file(self, url):
-
-        if not os.path.exists(self.output_directory):
-            print('Specified path "%s" does not exist. It will be created.' % os.path.dirname(self.output_directory))
-            os.makedirs(self.output_directory)
-
         t_start = time.clock()
+
         r = requests.get(url, stream=True)
         if r.status_code == requests.codes.ok:
 
-            bar_widgets = [
-                ' [', progressbar.Timer(), '] ',
-                progressbar.Bar(marker="∎", left="[", right=" "), progressbar.Percentage(), " ",
-                progressbar.FileTransferSpeed(), "] ",
-                ' (', progressbar.ETA(), ') ',
-            ]
-
             f_name = self.output_directory + "/" + HelpUtility.compile_filename(url)
-            total_length = int(r.headers.get('content-length'))
-            bytes_downloaded = 0
-            chunk_size = 1024
 
-            with progressbar.ProgressBar(max_value=total_length, widgets=bar_widgets) as bar:
-                bar.start()
+            try:
+                total_length = int(r.headers.get('content-length'))
+            except TypeError:
+                print('ERROR: Bad Url or content is unreachable')
+                return
+
+            bytes_downloaded = 0
+
+            if total_length / 1024 < 1024:
+                chunk_size = 128
+            else:
+                chunk_size = 1024
+
+            bar_widgets = [
+                  ' [', progressbar.Timer(), '] ',
+                  progressbar.Bar(marker="∎", left="[", right=" "), progressbar.Percentage(), " ",
+                  progressbar.FileTransferSpeed(), "] ",
+                  ' (', progressbar.ETA(), ') ',
+              ]
+
+            print("* Thread " + self.name + " - processing URL")
+
+            with self.output_lock:
+                bar = progressbar.ProgressBar(max_value=total_length, widgets=bar_widgets)
                 with open(f_name, "wb") as f:
                     for chunk in r.iter_content(chunk_size):
                         if chunk:
                             f.write(chunk)
                             bytes_downloaded += len(chunk)
                             bar.update(bytes_downloaded)
-                    t_elapsed = time.clock() - t_start
-            r.close()
-            print("* Thread: " + self.name + " Downloaded " + url + " in " + str(int(t_elapsed)) + " seconds")
+                    bar.finish('\r')
+                t_elapsed = time.clock() - t_start
+                print("* Thread: " + self.name + " Downloaded " + url + " in " + str(t_elapsed) + " seconds\n")
+                r.close()
         else:
             r.close()
             print("* Thread: " + self.name + " Bad URL: " + url)
@@ -70,33 +82,68 @@ class Downloader(threading.Thread):
 class DownloadManager:
     """Spawns downloader threads and manages URL downloads queue"""
 
-    def __init__(self, download_dict, output_directory, thread_count=5):
-        self.thread_count = thread_count
+    def __init__(self, output_directory, download_dict, threads=5):
         self.download_dict = download_dict
         self.output_directory = output_directory
         self.queue = Queue()
+        self._progress = collections.OrderedDict()
+        self._workers = []
+        self._thread_count = threads
+
+    def start_watching(self):
+        self.__start_workers()
+        watcher = Watch.ClipboardWatcher(HelpUtility.is_downloadable_url, self.begin_download, 5.)
+        watcher.setDaemon(True)
+        watcher.start()
+
+        click.echo("""
+        ----------------PyDownload---------------
+                Watching your clipboard...     
+                Press Any Key to exit         
+        -----------------------------------------""")
+
+        choice = ''
+        while choice is '':
+            try:
+                # time.sleep(10)
+                choice = input()
+            except KeyboardInterrupt:
+                break
+        watcher.stop()
+
+    def __start_workers(self):
 
         # Creating a thread pool and pass them a queue
-        for i in range(self.thread_count):
-            t = Downloader(self.queue, self.output_directory)
-            t.setDaemon(True)
-            t.start()
+        for i in range(self._thread_count):
+            worker = Downloader(self.queue, self.output_directory)
+            worker.setDaemon(True)
+            worker.start()
+            self._progress[worker.name] = 0, 0
+            self._workers.append(worker)
 
     # Start the downloader threads, fill the queue with the URLs and
     # then feed the threads URLs via the queue
-    def begin_download(self, direct_link=None):
-        # queue = Queue()
+    def begin_download(self, watcher_url=None):
 
-        if direct_link is not None:
-            self.queue.put(direct_link)
+        if watcher_url is not None:
+            self.queue.put(watcher_url)
             self.queue.join()
             return
-        # Load the queue from download dict
-        for linkname in self.download_dict:
-            # print uri
-            self.queue.put(self.download_dict[linkname])
+
+        self.__start_workers()
+        for key in self.download_dict:
+            self.queue.put(self.download_dict[key])
 
         # wait for the queue to finish
         self.queue.join()
 
         return
+
+
+
+
+
+
+
+
+
