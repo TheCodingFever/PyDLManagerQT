@@ -1,7 +1,6 @@
 from Core import Initializer
 import click
 
-
 @click.command()
 @click.argument('output_directory', type=click.Path(exists=True))
 @click.option('--ifile', '-i', default=None, type=click.Path(), help='JSON file with structure as following: '
