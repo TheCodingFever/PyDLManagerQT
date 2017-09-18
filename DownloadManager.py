@@ -53,24 +53,20 @@ class Downloader(threading.Thread):
             else:
                 chunk_size = 1024
 
-            bar_widgets = [
-                  ' [', progressbar.Timer(), '] ',
-                  progressbar.Bar(marker="∎", left="[", right=" "), progressbar.Percentage(), " ",
-                  progressbar.FileTransferSpeed(), "] ",
-                  ' (', progressbar.ETA(), ') ',
-              ]
-
             print("* Thread " + self.name + " - processing URL")
 
             with self.output_lock:
-                bar = progressbar.ProgressBar(max_value=total_length, widgets=bar_widgets)
+
                 with open(f_name, "wb") as f:
                     for chunk in r.iter_content(chunk_size):
                         if chunk:
                             f.write(chunk)
                             bytes_downloaded += len(chunk)
-                            bar.update(bytes_downloaded)
-                    bar.finish('\r')
+
+                            # Here we can pass to queue name of our process and % of download:
+                            # And it seems that we need a prioritized queue ?
+                            # self.queue.put_nowait([self.name, bytes_downloaded/total_length])
+
                 t_elapsed = time.clock() - t_start
                 print("* Thread: " + self.name + " Downloaded " + url + " in " + str(t_elapsed) + " seconds\n")
                 r.close()
@@ -118,7 +114,7 @@ class DownloadManager:
             worker = Downloader(self.queue, self.output_directory)
             worker.setDaemon(True)
             worker.start()
-            self._progress[worker.name] = 0, 0
+            self._progress[worker.name] = 0
             self._workers.append(worker)
 
     # Start the downloader threads, fill the queue with the URLs and
@@ -140,9 +136,44 @@ class DownloadManager:
         return
 
 
+"""
+        This is an idea how to make async multiple progress bars output
+        need to consider using prioritized queue maybe?
 
+        def begin_download(self, add_url=None):
 
+            if add_url is not None:
+                dict(self.download_dict).clear()
+                self.download_dict[os.urandom(5)] = add_url
 
+            self.__start_workers()
+
+            while any(i.is_alive() for i in self._workers):  
+                time.sleep(0.1)
+                while not self.queue.empty():
+                    name, percent = self.queue.get()     <--Problem: we need to get() from queue only
+                                                            progress related data but not urls
+                    self._progress[name] = percent
+                    self.print_progress()
+
+            # wait for the queue to finish
+            # self.queue.join()
+
+            return
+
+        def print_progress(progress):
+            sys.stdout.write('\033[2J\033[H') #clear screen     <--Problem: we need to clear the screen 
+                                                                   every time we want to draw
+                                                                
+                                                                <--Problem: current implementation of progress bar is 
+                                                                not ideal, ideal would be to find a module that can 
+                                                                behave good in this situation 
+            for filename, percent in progress.items():
+                bar = ('=' * int(percent * 20)).ljust(20)
+                percent = int(percent * 100)
+                sys.stdout.write("%s [%s] %s%%\n" % (filename, bar, percent))
+            sys.stdout.flush()
+"""
 
 
 
