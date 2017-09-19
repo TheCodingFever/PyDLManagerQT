@@ -5,7 +5,7 @@ import binascii
 import threading
 import requests
 import time
-import HelpUtility
+import RegexUtility
 import progressbar
 import collections
 import ClipboardWatcher as Watch
@@ -38,7 +38,7 @@ class Downloader(threading.Thread):
         r = requests.get(url, stream=True)
         if r.status_code == requests.codes.ok:
 
-            f_name = self.output_directory + "/" + HelpUtility.compile_filename(url)
+            f_name = self.output_directory + "/" + RegexUtility.compile_filename(url)
 
             try:
                 total_length = int(r.headers.get('content-length'))
@@ -92,7 +92,7 @@ class DownloadManager:
 
     def start_watching(self):
         self.__start_workers()
-        watcher = Watch.ClipboardWatcher(HelpUtility.is_downloadable_url, self.begin_download, 5.)
+        watcher = Watch.ClipboardWatcher(RegexUtility.is_downloadable_url, self.begin_download, 5.)
         watcher.setDaemon(True)
         watcher.start()
 
