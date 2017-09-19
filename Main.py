@@ -1,4 +1,4 @@
-from Core import Initializer
+from Factory import Initializer
 import click
 
 @click.command()
