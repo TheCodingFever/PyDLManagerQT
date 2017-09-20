@@ -27,7 +27,6 @@ class Downloader(threading.Thread):
     def run(self):
 
         while not self._stopping:
-
             url = self.url_queue.get()
 
             # download the file
@@ -66,7 +65,8 @@ class Downloader(threading.Thread):
                         if chunk:
                             f.write(chunk)
                             bytes_downloaded += len(chunk)
-                            self.progress_queue.put_nowait([url, bytes_downloaded/total_length, t_start])
+                            self.progress_queue.put_nowait([url, bytes_downloaded / total_length, t_start])
+
                 r.close()
         else:
             r.close()
@@ -84,6 +84,7 @@ class DownloadManager:
         self.output_directory = output_directory
         self.url_queue = Queue()
         self.progress_queue = Queue()
+        self.elapsed_time = {}
         self._progress = collections.OrderedDict()
         self._workers = []
         self._thread_count = threads
@@ -142,20 +143,23 @@ class DownloadManager:
         while any(i.is_alive() for i in self._workers):
             time.sleep(0.1)
             while not self.progress_queue.empty():
-                name, percent, s_time = self.progress_queue.get()
-                self._progress[name] = percent, s_time
+                url, percent, s_time = self.progress_queue.get()
+                self._progress[url] = percent, s_time
                 self.print_progress()
                 self.progress_queue.task_done()
 
     def print_progress(self):
         os.system('cls' if os.name == 'nt' else 'clear')
-        for url, (percent, s_time) in self._progress.items():
+        for url, (percent, s_time) in list(self._progress.items()):
             filename = RegexUtility.fetch_filename(url)
             bar = ('=' * int(percent * 20)).ljust(20)
             percent = int(percent * 100)
-            print('\r')
             sys.stdout.write(" %s:\n [%s] %s%%\n" % (filename, bar, percent))
+
             if percent == 100:
-                t_elapsed = time.clock() - s_time
-                sys.stdout.write(" Download from " + url + " completed in " + str(t_elapsed) + " seconds\n")
+                if url not in self.elapsed_time:
+                    self.elapsed_time[url] = time.clock() - s_time
+                sys.stdout.write(
+                    " Download completed in " + str(self.elapsed_time[url]) + " seconds\n")
+                sys.stdout.write('\n')
         sys.stdout.flush()
