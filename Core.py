@@ -94,18 +94,22 @@ class DownloadManager:
         watcher = Watch.ClipboardWatcher(RegexUtility.is_downloadable_url, self.begin_download, 5.)
         watcher.setDaemon(True)
         watcher.start()
-
-        click.echo("""
+        message = """
         ----------------PyDownload---------------
                 Watching your clipboard...     
-                Press Any Key to exit         
-        -----------------------------------------""")
+                     Ctrl-C to exit         
+        -----------------------------------------"""
 
-        choice = ''
-        while choice is '':
+        click.echo(message)
+
+        while True:
             try:
-                # time.sleep(10)
-                choice = input()
+                time.sleep(0.1)
+                while not self.progress_queue.empty():
+                    url, percent, s_time = self.progress_queue.get()
+                    self._progress[url] = percent, s_time
+                    self.print_progress()
+                    self.progress_queue.task_done()
             except KeyboardInterrupt:
                 break
         watcher.stop()
@@ -154,7 +158,7 @@ class DownloadManager:
             filename = RegexUtility.fetch_filename(url)
             bar = ('=' * int(percent * 20)).ljust(20)
             percent = int(percent * 100)
-            sys.stdout.write(" %s:\n [%s] %s%%\n" % (filename, bar, percent))
+            sys.stdout.write("\r %s:\n \r[%s] %s%%\n" % (filename, bar, percent))
 
             if percent == 100:
                 if url not in self.elapsed_time:
