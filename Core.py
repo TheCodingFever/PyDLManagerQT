@@ -9,28 +9,33 @@ import RegexUtility
 import progressbar
 import collections
 import ClipboardWatcher as Watch
+import sys
 
 
 class Downloader(threading.Thread):
     """Threaded file downloader"""
 
-    def __init__(self, queue, output_directory):
+    def __init__(self, url_queue, progress_queue, output_directory):
         threading.Thread.__init__(self, name=binascii.hexlify(os.urandom(8)))
-        self.queue = queue
+        self.url_queue = url_queue
+        self.progress_queue = progress_queue
         self.output_directory = output_directory
         self.progress_bar = progressbar
         self.output_lock = threading.Lock()
+        self._stopping = False
 
     def run(self):
-        while True:
 
-            url = self.queue.get()
+        while not self._stopping:
+
+            url = self.url_queue.get()
 
             # download the file
             self.download_file(url)
 
             # send a signal to queue that job is done
-            self.queue.task_done()
+            self.url_queue.task_done()
+            self.stop()
 
     def download_file(self, url):
         t_start = time.clock()
@@ -38,7 +43,8 @@ class Downloader(threading.Thread):
         r = requests.get(url, stream=True)
         if r.status_code == requests.codes.ok:
 
-            f_name = self.output_directory + "/" + RegexUtility.compile_filename(url)
+            file_name = RegexUtility.fetch_filename(url)
+            f_target_path = self.output_directory + "/" + file_name
 
             try:
                 total_length = int(r.headers.get('content-length'))
@@ -53,26 +59,21 @@ class Downloader(threading.Thread):
             else:
                 chunk_size = 1024
 
-            print("* Thread " + self.name + " - processing URL")
-
             with self.output_lock:
 
-                with open(f_name, "wb") as f:
+                with open(f_target_path, "wb") as f:
                     for chunk in r.iter_content(chunk_size):
                         if chunk:
                             f.write(chunk)
                             bytes_downloaded += len(chunk)
-
-                            # Here we can pass to queue name of our process and % of download:
-                            # And it seems that we need a prioritized queue ?
-                            # self.queue.put_nowait([self.name, bytes_downloaded/total_length])
-
-                t_elapsed = time.clock() - t_start
-                print("* Thread: " + self.name + " Downloaded " + url + " in " + str(t_elapsed) + " seconds\n")
+                            self.progress_queue.put_nowait([url, bytes_downloaded/total_length, t_start])
                 r.close()
         else:
             r.close()
             print("* Thread: " + self.name + " Bad URL: " + url)
+
+    def stop(self):
+        self._stopping = True
 
 
 class DownloadManager:
@@ -81,7 +82,8 @@ class DownloadManager:
     def __init__(self, output_directory, download_dict, threads=5):
         self.download_dict = download_dict
         self.output_directory = output_directory
-        self.queue = Queue()
+        self.url_queue = Queue()
+        self.progress_queue = Queue()
         self._progress = collections.OrderedDict()
         self._workers = []
         self._thread_count = threads
@@ -111,10 +113,9 @@ class DownloadManager:
 
         # Creating a thread pool and pass them a queue
         for i in range(self._thread_count):
-            worker = Downloader(self.queue, self.output_directory)
+            worker = Downloader(self.url_queue, self.progress_queue, self.output_directory)
             worker.setDaemon(True)
             worker.start()
-            self._progress[worker.name] = 0
             self._workers.append(worker)
 
     # Start the downloader threads, fill the queue with the URLs and
@@ -122,59 +123,39 @@ class DownloadManager:
     def begin_download(self, watcher_url=None):
 
         if watcher_url is not None:
-            self.queue.put(watcher_url)
-            self.queue.join()
+            self.url_queue.put(watcher_url)
+            self.url_queue.join()
             return
 
         self.__start_workers()
         for key in self.download_dict:
-            self.queue.put(self.download_dict[key])
+            self.url_queue.put(self.download_dict[key])
+
+        self.get_progress()
 
         # wait for the queue to finish
-        self.queue.join()
+        self.progress_queue.join()
 
         return
 
+    def get_progress(self):
+        while any(i.is_alive() for i in self._workers):
+            time.sleep(0.1)
+            while not self.progress_queue.empty():
+                name, percent, s_time = self.progress_queue.get()
+                self._progress[name] = percent, s_time
+                self.print_progress()
+                self.progress_queue.task_done()
 
-"""
-        This is an idea how to make async multiple progress bars output
-        need to consider using prioritized queue maybe?
-
-        def begin_download(self, add_url=None):
-
-            if add_url is not None:
-                dict(self.download_dict).clear()
-                self.download_dict[os.urandom(5)] = add_url
-
-            self.__start_workers()
-
-            while any(i.is_alive() for i in self._workers):  
-                time.sleep(0.1)
-                while not self.queue.empty():
-                    name, percent = self.queue.get()     <--Problem: we need to get() from queue only
-                                                            progress related data but not urls
-                    self._progress[name] = percent
-                    self.print_progress()
-
-            # wait for the queue to finish
-            # self.queue.join()
-
-            return
-
-        def print_progress(progress):
-            sys.stdout.write('\033[2J\033[H') #clear screen     <--Problem: we need to clear the screen 
-                                                                   every time we want to draw
-                                                                
-                                                                <--Problem: current implementation of progress bar is 
-                                                                not ideal, ideal would be to find a module that can 
-                                                                behave good in this situation 
-            for filename, percent in progress.items():
-                bar = ('=' * int(percent * 20)).ljust(20)
-                percent = int(percent * 100)
-                sys.stdout.write("%s [%s] %s%%\n" % (filename, bar, percent))
-            sys.stdout.flush()
-"""
-
-
-
-
+    def print_progress(self):
+        os.system('cls' if os.name == 'nt' else 'clear')
+        for url, (percent, s_time) in self._progress.items():
+            filename = RegexUtility.fetch_filename(url)
+            bar = ('=' * int(percent * 20)).ljust(20)
+            percent = int(percent * 100)
+            print('\r')
+            sys.stdout.write(" %s:\n [%s] %s%%\n" % (filename, bar, percent))
+            if percent == 100:
+                t_elapsed = time.clock() - s_time
+                sys.stdout.write(" Download from " + url + " completed in " + str(t_elapsed) + " seconds\n")
+        sys.stdout.flush()

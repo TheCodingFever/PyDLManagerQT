@@ -1,6 +1,6 @@
 import sys
 import json
-import DownloadManager
+import Core
 import os
 import click
 import RegexUtility
@@ -29,7 +29,7 @@ class Factory:
                 url_list = json.load(fp)
                 for url in url_list:
                     download_dic[url['link_name']] = url['link_address']
-        except click.ClickException('JSON %s structure is not as expected. See --help' % self._input_file):
+        except json.JSONDecodeError('JSON %s structure is not as expected. See --help' % self._input_file):
             sys.exit(2)
 
         if self._fList is not None and self._fList:
@@ -51,7 +51,7 @@ class Factory:
         if not self._is_watch:
             targets_dictionary = self.__build_urls()
 
-        return DownloadManager.DownloadManager(self._output_directory, targets_dictionary)
+        return Core.DownloadManager(self._output_directory, targets_dictionary)
 
 
 class Initializer:
