@@ -5,8 +5,7 @@ import binascii
 import threading
 import requests
 import time
-import RegexUtility
-import progressbar
+import Utilities
 import collections
 import ClipboardWatcher as Watch
 import sys
@@ -20,7 +19,6 @@ class Downloader(threading.Thread):
         self.url_queue = url_queue
         self.progress_queue = progress_queue
         self.output_directory = output_directory
-        self.progress_bar = progressbar
         self.output_lock = threading.Lock()
         self._stopping = False
 
@@ -42,7 +40,7 @@ class Downloader(threading.Thread):
         r = requests.get(url, stream=True)
         if r.status_code == requests.codes.ok:
 
-            file_name = RegexUtility.fetch_filename(url)
+            file_name = Utilities.fetch_filename(url)
             f_target_path = self.output_directory + "/" + file_name
 
             try:
@@ -91,28 +89,29 @@ class DownloadManager:
 
     def start_watching(self):
         self.__start_workers()
-        watcher = Watch.ClipboardWatcher(RegexUtility.is_downloadable_url, self.begin_download, 5.)
+        watcher = Watch.ClipboardWatcher(Utilities.is_downloadable_url, self.begin_download, 5.)
         watcher.setDaemon(True)
         watcher.start()
         message = """
         ----------------PyDownload---------------
                 Watching your clipboard...     
-                     Ctrl-C to exit         
+                     Ctrl-C to abort        
         -----------------------------------------"""
 
         click.echo(message)
 
-        while True:
+        while watcher.is_alive():
             try:
-                time.sleep(0.1)
                 while not self.progress_queue.empty():
                     url, percent, s_time = self.progress_queue.get()
                     self._progress[url] = percent, s_time
                     self.print_progress()
                     self.progress_queue.task_done()
+                time.sleep(2)
+                Utilities.clear_screen()
+                click.echo(message)
             except KeyboardInterrupt:
-                break
-        watcher.stop()
+                watcher.stop()
 
     def __start_workers(self):
 
@@ -153,9 +152,9 @@ class DownloadManager:
                 self.progress_queue.task_done()
 
     def print_progress(self):
-        os.system('cls' if os.name == 'nt' else 'clear')
+        Utilities.clear_screen()
         for url, (percent, s_time) in list(self._progress.items()):
-            filename = RegexUtility.fetch_filename(url)
+            filename = Utilities.fetch_filename(url)
             bar = ('=' * int(percent * 20)).ljust(20)
             percent = int(percent * 100)
             sys.stdout.write("\r %s:\n \r[%s] %s%%\n" % (filename, bar, percent))

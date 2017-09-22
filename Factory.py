@@ -3,7 +3,7 @@ import json
 import Core
 import os
 import click
-import RegexUtility
+import Utilities
 
 
 class Factory:
@@ -36,7 +36,7 @@ class Factory:
             # Add in any additional files contained in the flist variable
             if len(self._fList) > 0:
                 for f in self._fList:
-                    if RegexUtility.is_downloadable_url(f):
+                    if Utilities.is_downloadable_url(f):
                         download_dic[os.path.basename(f)] = f
             else:
                 click.echo('No urls to work with were found!')

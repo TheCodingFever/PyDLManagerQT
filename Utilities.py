@@ -20,3 +20,7 @@ def is_downloadable_url(url):
     else:
         print('Bad Url!')
         return False
+
+
+def clear_screen():
+    os.system('cls' if os.name == 'nt' else 'clear')
