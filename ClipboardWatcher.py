@@ -10,8 +10,8 @@ def print_to_stdout(clipboard_content):
 class ClipboardWatcher(threading.Thread):
     def __init__(self, predicate, callback, pause=5):
         super(ClipboardWatcher, self).__init__()
-        self._predicate = predicate
         self._pause = pause
+        self._predicate = predicate
         self._stopping = False
         self._callback = callback
 

@@ -3,8 +3,6 @@ import json
 import Core
 import os
 import click
-import Utilities
-
 
 class Factory:
     def __init__(self, output_directory, input_file, flist, is_watch=False):
@@ -36,8 +34,7 @@ class Factory:
             # Add in any additional files contained in the flist variable
             if len(self._fList) > 0:
                 for f in self._fList:
-                    if Utilities.is_downloadable_url(f):
-                        download_dic[os.path.basename(f)] = f
+                    download_dic[os.path.basename(f)] = f
             else:
                 click.echo('No urls to work with were found!')
                 click.echo('Quiting the program')

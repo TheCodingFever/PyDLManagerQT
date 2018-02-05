@@ -45,6 +45,7 @@ class Downloader(threading.Thread):
 
             try:
                 total_length = int(r.headers.get('content-length'))
+                content_type = r.headers.get('content-type')
             except TypeError:
                 print('ERROR: Bad Url or content is unreachable')
                 return
@@ -56,16 +57,17 @@ class Downloader(threading.Thread):
             else:
                 chunk_size = 1024
 
-            with self.output_lock:
+            if Utilities.is_downloadable_url(content_type):
+                with self.output_lock:
 
-                with open(f_target_path, "wb") as f:
-                    for chunk in r.iter_content(chunk_size):
-                        if chunk:
-                            f.write(chunk)
-                            bytes_downloaded += len(chunk)
-                            self.progress_queue.put_nowait([url, bytes_downloaded / total_length, t_start])
+                    with open(f_target_path, "wb") as f:
+                        for chunk in r.iter_content(chunk_size):
+                            if chunk:
+                                f.write(chunk)
+                                bytes_downloaded += len(chunk)
+                                self.progress_queue.put_nowait([url, bytes_downloaded / total_length, t_start])
 
-                r.close()
+                    r.close()
         else:
             r.close()
             print("* Thread: " + self.name + " Bad URL: " + url)
@@ -89,7 +91,7 @@ class DownloadManager:
 
     def start_watching(self):
         self.__start_workers()
-        watcher = Watch.ClipboardWatcher(Utilities.is_downloadable_url, self.begin_download, 5.)
+        watcher = Watch.ClipboardWatcher(Utilities.is_url, self.begin_download, 5.)
         watcher.setDaemon(True)
         watcher.start()
         message = """
